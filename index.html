@@ -1,1 +1,119 @@
-Hello world
+<html>
+<head>
+    <style type="text/css">
+        div.frame {
+            width: 100%;
+            height: auto;
+            text-align: center;
+        }
+        div.input {
+            float: left;
+            width: 50%;
+            margin: auto;
+        }
+        div.output {
+            float: left;
+            color: blue;
+            width: 50%;
+            margin: auto;
+        }
+        textarea {
+            resize: vertical;
+            width: 50%;
+            height: 300px;
+        }
+    </style>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/js-yaml/3.4.2/js-yaml.min.js'></script>
+    <script>
+        function listAllProperties(o){
+            var objectToInspect;
+            var result = [];
+
+            for(objectToInspect = o; objectToInspect !== null; objectToInspect = Object.getPrototypeOf(objectToInspect)){
+                result = result.concat(Object.getOwnPropertyNames(objectToInspect));
+            }
+
+            return result;
+        }
+        var isTable = false;
+        var isColumn = false;
+        $(document).ready(function(){
+            $('#input textarea').each(function(){
+                $(this).bind('keyup', convert(this));
+            });
+            function convert(elm){
+                var v, old = elm.value;
+                return function(){
+                    if(old != (v=elm.value)){
+                        old = v;
+                        str = $(this).val();
+                        var doc = jsyaml.load(str);
+                        var text = "";
+                        JSON.stringify(doc, function(key, value) {
+                            if (!isTable && key === 'tableName') {
+                                isTable = true;
+                                text += "﻿CREATE TABLE `" + value + "` (";
+                            } else if (isTable) {
+                                if (!isColumn && key === 'columns') {
+                                    isColumn = true;
+//                                    text += key + value;
+                                    return value;
+                                } else if (isColumn) {
+                                    switch (key) {
+                                        case "type":
+                                            text += " " + value;
+                                            break;
+                                        case "fixed":
+                                            text += " " + value;
+                                            break;
+                                        case "unsigned":
+                                            text += " " + value;
+                                            break;
+                                        case "primary":
+                                            text += " " + value;
+                                            break;
+                                        case "notnull":
+                                            text += " " + value;
+                                            break;
+                                        case "autoincrement":
+                                            text += " " + value;
+                                            break;
+                                        case "comment":
+                                            text += " " + value;
+                                            break;
+                                        default: // カラム名
+                                            text += key;
+                                            return value;
+                                    }
+                                } else {
+                                    text += "b";
+                                }
+                            } else {
+                                return value;
+                            }
+                        });
+                        $("#output div").text(text);
+                    }
+                }
+            }
+        });
+    </script>
+</head>
+
+<body>
+<div class="frame">
+    <div class="input">
+        <div id="input">
+            <textarea></textarea></p>
+        </div>
+    </div>
+    <div class="output">
+        <div id="output">
+            <div></div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
