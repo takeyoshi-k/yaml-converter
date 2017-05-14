@@ -26,17 +26,6 @@
     <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/js-yaml/3.4.2/js-yaml.min.js'></script>
     <script>
-        function listAllProperties(o){
-            var objectToInspect;
-            var result = [];
-
-            for(objectToInspect = o; objectToInspect !== null; objectToInspect = Object.getPrototypeOf(objectToInspect)){
-                result = result.concat(Object.getOwnPropertyNames(objectToInspect));
-            }
-
-            return result;
-        }
-        var isTable = false;
         var isColumn = false;
         $(document).ready(function(){
             $('#input textarea').each(function(){
@@ -50,49 +39,48 @@
                         str = $(this).val();
                         var doc = jsyaml.load(str);
                         var text = "";
+                        var column_name = "";
+                        var primary_keys = [];
                         JSON.stringify(doc, function(key, value) {
-                            if (!isTable && key === 'tableName') {
-                                isTable = true;
-                                text += "﻿CREATE TABLE `" + value + "` (";
-                            } else if (isTable) {
-                                if (!isColumn && key === 'columns') {
-                                    isColumn = true;
-//                                    text += key + value;
-                                    return value;
-                                } else if (isColumn) {
-                                    switch (key) {
-                                        case "type":
-                                            text += " " + value;
-                                            break;
-                                        case "fixed":
-                                            text += " " + value;
-                                            break;
-                                        case "unsigned":
-                                            text += " " + value;
-                                            break;
-                                        case "primary":
-                                            text += " " + value;
-                                            break;
-                                        case "notnull":
-                                            text += " " + value;
-                                            break;
-                                        case "autoincrement":
-                                            text += " " + value;
-                                            break;
-                                        case "comment":
-                                            text += " " + value;
-                                            break;
-                                        default: // カラム名
-                                            text += key;
-                                            return value;
+                            switch (key) {
+                                case "type":
+                                    text += " " + value;
+                                    break;
+                                case "primary":
+                                    primary_keys.splice(value['seq'] - 1, 0, "`" + column_name + "`");
+                                    break;
+                                case "not_null":
+                                    if (value) text += " NOT NULL";
+                                    break;
+                                case "auto_increment":
+                                    text += " AUTO_INCREMENT";
+                                    break;
+                                case "default":
+                                    text += " DEFAULT " + value;
+                                    break;
+                                case "comment":
+                                    text += " /* " + value + " */";
+                                    break;
+                                default: // テーブル名 or カラム名
+                                    if ( key === 'schema') {
+                                        isColumn = true;
+                                    } else if (isColumn) {
+                                        if (text.slice(-1) !== '(') {
+                                            text += ",";
+                                        }
+                                        text += "`" + key + "`";
+                                        column_name = key;
+                                    } else {
+                                        if (key) {
+                                            text += "﻿CREATE TABLE `" + key + "` (";
+                                        }
                                     }
-                                } else {
-                                    text += "b";
-                                }
-                            } else {
-                                return value;
+                                    return value;
                             }
                         });
+                        // 主キー定義
+                        text += ",PRIMARY KEY (" + primary_keys.join(',') + ")";
+                        text += ");";
                         $("#output div").text(text);
                     }
                 }
