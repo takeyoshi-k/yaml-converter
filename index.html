@@ -6,41 +6,99 @@
             height: auto;
             text-align: center;
         }
-        div.input {
+        div.yaml {
             float: left;
-            width: 50%;
+            width: 40%;
             margin: auto;
         }
-        div.output {
+        div.ddl {
             float: left;
             color: blue;
-            width: 50%;
+            width: 40%;
             margin: auto;
+        }
+        button.switch_button {
+            float: left;
+            margin-top: 10%;
+            /* 文字サイズを1.4emに指定 */
+            font-size: 1.4em;
+            /* 文字の太さをboldに指定 */
+            font-weight: bold;
+            /* 縦方向に10px、
+             * 横方向に30pxの余白を指定 */
+            padding: 10px 30px;
+            /* 文字色を白色に指定 */
+            color: #fff;
+            /* ボーダーをなくす */
+            border-style: none;
+
+            /* ボタンの影の指定
+             * 影の横幅を2px
+             * 縦長を2px
+             * ぼかしを3px
+             * 広がりを1px
+             * 色を#666（グレー）に指定 */
+            box-shadow: 2px 2px 3px 1px #666;
+            -moz-box-shadow: 2px 2px 3px 1px #666;
+            -webkit-box-shadow: 2px 2px 3px 1px #666;
+
+            /* テキストの影の指定
+             * 影の横幅を1px
+             * 縦長を1px
+             * ぼかしを2px
+             * 色を#000（黒）に指定 */
+            text-shadow: 1px 1px 2px #000;
+            /* グラデーションの指定 */
+            background: -moz-linear-gradient(bottom, #36d, #248 50%, #36d);
+            background: -webkit-gradient(linear, left bottom, left top, from(#36d), color-stop(0.5, #248), to(#36d));
+            /* 角丸の指定 */
+            -moz-border-radius: 5px;
+            -webkit-border-radius: 5px;
+            border-radius: 5px;
+        }
+        button.switch_button:hover {
+            /* 透明度を20%に指定 */
+            opacity: 0.8;
         }
         textarea {
             resize: vertical;
-            width: 50%;
+            width: 60%;
             height: 300px;
         }
     </style>
-    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+    <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
     <script src='https://cdnjs.cloudflare.com/ajax/libs/js-yaml/3.4.2/js-yaml.min.js'></script>
     <script>
-        var isColumn = false;
         $(document).ready(function(){
-            $('#input textarea').each(function(){
-                $(this).bind('keyup', convert(this));
+            $('#ddl_id').prop('disabled', true);
+            $('#switch_button_id').click(function() {
+                if ($('#ddl_id').prop('disabled') == true) {
+                    $('#ddl_id').prop('disabled', false);
+                    $('#yaml_id').prop('disabled', true);
+                } else {
+                    $('#ddl_id').prop('disabled', true);
+                    $('#yaml_id').prop('disabled', false);
+                }
             });
-            function convert(elm){
+            $('#yaml_id').each(function(){
+                $(this).bind('keyup', convert_yaml_to_ddl(this));
+            });
+            function convert_yaml_to_ddl(elm){
                 var v, old = elm.value;
                 return function(){
                     if(old != (v=elm.value)){
                         old = v;
                         str = $(this).val();
                         var doc = jsyaml.load(str);
+                        var isColumn = false;
                         var text = "";
                         var column_name = "";
                         var primary_keys = [];
+                        var unique_name = "";
+                        var unique_keys = [];
+                        var index_name = "";
+                        var index_keys = [];
+                        // TODO:カラム名とキーが同名の場合の対応
                         JSON.stringify(doc, function(key, value) {
                             switch (key) {
                                 case "type":
@@ -61,6 +119,14 @@
                                 case "comment":
                                     text += " /* " + value + " */";
                                     break;
+                                case "unique":
+                                    unique_keys.splice(value[0]['seq'] - 1, 0, "`" + column_name + "`");
+                                    unique_name = value[0]['name'];
+                                    break;
+                                case "index":
+                                    index_keys.splice(value[0]['seq'] - 1, 0, "`" + column_name + "`");
+                                    index_name = value[0]['name'];
+                                    break;
                                 default: // テーブル名 or カラム名
                                     if ( key === 'schema') {
                                         isColumn = true;
@@ -68,7 +134,7 @@
                                         if (text.slice(-1) !== '(') {
                                             text += ",";
                                         }
-                                        text += "`" + key + "`";
+                                        text += "\n`" + key + "`";
                                         column_name = key;
                                     } else {
                                         if (key) {
@@ -78,10 +144,49 @@
                                     return value;
                             }
                         });
-                        // 主キー定義
-                        text += ",PRIMARY KEY (" + primary_keys.join(',') + ")";
-                        text += ");";
-                        $("#output div").text(text);
+                        if (text !== "") {
+                            // 主キー定義
+                            if (primary_keys.length > 0) {
+                                text += ",\nPRIMARY KEY (" + primary_keys.join(',') + ")";
+                            }
+                            // UNIQUE定義
+                            if (unique_keys.length > 0) {
+                                text += ",\nUNIQUE KEY " + unique_name + "(" + unique_keys.join(',') + ")";
+                            }
+                            // INDEX定義
+                            if (index_keys.length > 0) {
+                                text += ",\nINDEX " + index_name + "(" + index_keys.join(',') + ")";
+                            }
+                            text += "\n);";
+                        }
+                        $("#ddl_id").val(text);
+                    }
+                }
+            }
+            $('#ddl_id').each(function(){
+                $(this).bind('keyup', convert_ddl_to_yaml(this));
+            });
+            function convert_ddl_to_yaml(elm){
+                var v, old = elm.value;
+                return function(){
+                    if(old != (v=elm.value)){
+                        old = v;
+                        var result = "";
+                        var text = "";
+                        var str = $(this).val();
+                        var strArray = str.split(",");
+                        strArray.forEach(
+                            function convert_str(value) {
+//                                text += value;
+                                var textArray = value.split(" ");
+                                textArray.forEach(
+                                    function convert_text(val) {
+                                        result += val + "\n";
+                                    }
+                                );
+                            }
+                        );
+                        $("#yaml_id").val(result);
                     }
                 }
             }
@@ -91,15 +196,16 @@
 
 <body>
 <div class="frame">
-    <div class="input">
-        <div id="input">
-            <textarea></textarea></p>
-        </div>
+    <div class="yaml">
+        <textarea id="yaml_id"></textarea>
     </div>
-    <div class="output">
-        <div id="output">
-            <div></div>
-        </div>
+    <div class="switch_button">
+        <button id="switch_button_id" class="switch_button" type="submit">
+            切替
+        </button>
+    </div>
+    <div class="ddl">
+        <textarea id="ddl_id"></textarea>
     </div>
 </div>
 
